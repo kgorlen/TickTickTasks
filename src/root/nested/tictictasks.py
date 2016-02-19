@@ -13,7 +13,7 @@ Todist export "everything" to .json: https://eclectide.com/todoist-export/
 import json
 import csv
 import re
-from datetime import date, datetime
+from datetime import date
 from dateutil import tz
 from dateutil.parser import parse
 from pprint import pprint
@@ -27,7 +27,7 @@ LOCAL_ZONE = tz.gettz(LOCAL_TZNAME)
 TODAY = date.today().isoformat()
 RE_OUTLOOKLINK = re.compile(r'.*(?P<link>\[\[outlook=[^,]+,\s*(?P<title>.*)\]\])', re.IGNORECASE)
 RE_THUNDERLINK = re.compile(r'.*(?P<link>thunderlink://.*)', re.IGNORECASE)
-RE_INTERVAL = re.compile(r'\s*(?P<tag>after|every)\s+(?:(?P<interval>\d+)\s+)?(?P<freq>day|week|month|year)', re.IGNORECASE)
+RE_INTERVAL = re.compile(r'\s*(?P<tag>after|every)\s+(?:(?P<interval>\d+)\s+)?(?:(?P<freq>day|week|month|year)s?)\b', re.IGNORECASE)
 RE_EVERY_MMDD = re.compile(r'\s*every\s+(?P<month>\d+)\s*[/-]\s*(?P<day>\d+)', re.IGNORECASE)
 RE_EVERY_MMMDD = re.compile(r'\s*every\s+(?P<month>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(?P<day>\d+)', re.IGNORECASE)
 RE_EVERY_DDMMM = re.compile(r'\s*every\s+(?P<day>\d+)\s+(?P<month>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)', re.IGNORECASE)
@@ -38,19 +38,35 @@ MMM_TO_MM = {'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,'jul':7,'aug':8,'se
 
 def parseRecurrence(rstring) :
     '''
-    Convert Todoist free-form recurring task strings to RFC 2445 iCalendar recurrence rules
+    Convert Todoist free-form recurring task rules to RFC 2445 iCalendar recurrence rules
+        
+    Todoist 'every' rules correspond to Tick Tick 'Due date' rules.
     
-    FREQ=[DAILY|WEEKLY|MONTHLY|YEARLY]
-    INTERVAL=n
-    BYDAY={n}[SU|MO|TU|WE|TH|FR|SA]
-    BYMONTHDAY=n
-    BYMONTH=n
-    WKST=[SU|MO|TU|WE|TH|FR|SA]
-    UNTIL=YYYYMMDD
+    Todoist 'after' rules correspond to Tick Tick 'Completion date' rules.
+    
+    The following Todoist recurrence formats/keywords are *not* implemented:    
+        every (morning | evening | weekday )
+        starting (<time> | <day> | <date>)
+        from (<time> | <day> | <date>)
+        until <date>
+        ending <date>
+        (ending in | for) <n> (weeks | days | months)
+        (new year day | valentine's day | mother's day | memorial day | father's day |
+            independence day | halloween | thanksgiving)    
+
+    RRULE parameters used by Tick Tick:
+        FREQ=[DAILY|WEEKLY|MONTHLY|YEARLY]
+        INTERVAL=n
+        BYDAY={n}[SU|MO|TU|WE|TH|FR|SA]
+        BYMONTHDAY=n
+        BYMONTH=n
+        WKST=[SU|MO|TU|WE|TH|FR|SA]
+        UNTIL=YYYYMMDD
  
-    Recurring after: FREQ=<freq>;INTERVAL=n
-    Recurring every: FREQ=<freq>;INTERVAL=n;BYDAY=n<dayOfWeek>
-    Recurring every: FREQ=<freq>;INTERVAL=n;BYMONTH=<month>;BYMONTHDAY=n
+    Todoist --> Tick Tick recurrence rule transformations:
+        Recurring after --> FREQ=<freq>;INTERVAL=n
+        Recurring every --> FREQ=<freq>;INTERVAL=n;BYDAY=n<dayOfWeek>
+        Recurring every --> FREQ=<freq>;INTERVAL=n;BYMONTH=<month>;BYMONTHDAY=n
     '''    
     rrule = ''
     if (rstring) :
@@ -58,8 +74,7 @@ def parseRecurrence(rstring) :
         if (mob) :
             freq = mob.group('freq').upper()
             if (freq == 'DAY') : freq = 'DAI'
-            interval = mob.group('interval')
-            if (not interval) : interval = 1
+            interval = mob.group('interval') or 1
             rrule = 'FREQ=' + freq + 'LY;INTERVAL=' + str(interval)
             return rrule.upper()
 
@@ -105,6 +120,7 @@ for i in data['Items'] :
     projectName = project[i['project_id']]['name']
     if (projectName not in tasks) : tasks[projectName] = []
     tasks[projectName].append(i)
+# pprint(tasks)
 
 for projectName in sorted(tasks.keys()) :
     with open(DIRECTORY+'TickTick/'+TODAY+' '+projectName+'.csv', 'w',\
@@ -161,7 +177,7 @@ for projectName in sorted(tasks.keys()) :
                 row.append(parse(task['due_date_utc']).isoformat().replace('+00:00', '+0000'))
             else : row.append('')
     
-    # Reminder: To be implemented
+    # Reminder: Not implemented
             row.append('')
     
     # Repeat: (RFC 2445 iCalendar recurrence rule)
@@ -169,7 +185,7 @@ for projectName in sorted(tasks.keys()) :
             rrule = ''
             if (rstring) :
                 rrule = parseRecurrence(rstring)
-                if (re.match(r'.*(?:after|every)', rstring, re.IGNORECASE)) :
+                if (re.match(r'.*(?:after|every)', rstring, re.IGNORECASE)) : # print debug info
                     print(projectName + ':' + taskName + ': ' + rstring + '-->' + rrule)
             row.append(rrule)
     
