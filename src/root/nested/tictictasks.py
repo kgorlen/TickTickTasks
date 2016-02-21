@@ -205,10 +205,8 @@ for projectName in sorted(tasks.keys()) :
     # Timezone
             row.append(LOCAL_TZNAME)
     
-    # Is All Day: true if due_date
-    #         if (task['due_date']): row.append('true')
-    #         else: row.append('')
-            row.append('')
+    # Is All Day: true unless reminder time (not implemented)
+            row.append('true')
     
             output.writerow(row)
     
