@@ -205,8 +205,11 @@ for projectName in sorted(tasks.keys()) :
     # Timezone
             row.append(LOCAL_TZNAME)
     
-    # Is All Day: true unless reminder time (not implemented)
-            row.append('true')
+    # Is All Day: false only if reminder time? (not implemented)
+            if (task['due_date_utc']) :
+                if ('no reminder?') : row.append('true')                    
+                else : row.append('false')
+            else : row.append('')
     
             output.writerow(row)
     
